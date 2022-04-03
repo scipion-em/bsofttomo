@@ -1,0 +1,4 @@
+scipion-pyworkflow
+scipion-em>=3.0.8
+scipion-em-tomo
+scipion-em-bsoft

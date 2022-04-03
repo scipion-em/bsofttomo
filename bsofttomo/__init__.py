@@ -31,5 +31,5 @@ _logo = "bsoft_logo.png"
 _references = ['you2019']
 
 
-class Plugin(pwem.Plugin, bsoft):
+class Plugin(pwem.Plugin):
     pass
