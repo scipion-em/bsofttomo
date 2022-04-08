@@ -1,12 +1,12 @@
 # **************************************************************************
 # *
-# * Authors:     Juan Martin
+# * Authors:     Yunior C. Fonseca Reyna (cfonseca@cnb.csic.es)
 # *
-# * your institution
+# * Unidad de  Bioinformatica of Centro Nacional de Biotecnologia , CSIC
 # *
 # * This program is free software; you can redistribute it and/or modify
 # * it under the terms of the GNU General Public License as published by
-# * the Free Software Foundation; either version 2 of the License, or
+# * the Free Software Foundation; either version 3 of the License, or
 # * (at your option) any later version.
 # *
 # * This program is distributed in the hope that it will be useful,
@@ -24,12 +24,5 @@
 # *
 # **************************************************************************
 
-import pwem
-import bsoft
-
-_logo = "bsoft_logo.png"
-_references = ['you2019']
-
-
-class Plugin(pwem.Plugin):
-    pass
+from .test_protocols_bsofttomo import (TestBsoftTomo,
+                                           TestBsofttomoBase)
