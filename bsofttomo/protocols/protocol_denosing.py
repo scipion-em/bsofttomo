@@ -31,12 +31,17 @@ Describe your python module here:
 This module will provide the traditional Hello world example
 """
 from pyworkflow.protocol import Protocol, params
+from pwem.protocols import EMProtocol
 from pyworkflow.utils import Message
 import os
 import bsoft
+from tomo.objects import Tomogram, SetOfTomograms
+from tomo.objects import TomoAcquisition
+from pyworkflow.object import Set
+from tomo.objects import SetOfTiltSeries, SetOfTomograms, SetOfCTFTomoSeries, CTFTomoSeries, CTFTomo
+from tomo.protocols import ProtTomoBase
 
-
-class ProtBsoftDenoising(Protocol):
+class ProtBsoftDenoising(EMProtocol, ProtTomoBase):
     """
     This protocol will print hello world in the console
     IMPORTANT: Classes names should be unique, better prefix them
@@ -133,12 +138,19 @@ class ProtBsoftDenoising(Protocol):
                       help='Iterations')
 
         # Gaussian smoothing filtering: bfilter parameters
-        form.addParam('gaussian',
+        form.addParam('gaussianMean',
                       params.FloatParam,
-                      default=19.3,
+                      default=19,
                       condition='denoisingOption==%d' % self.GAUSSIAN_SMOOTHING_FILTERING,
-                      label='Gaussian',
-                      help='Gaussian')
+                      label='Gaussian Mean',
+                      help='Gaussian mean')
+
+        form.addParam('gaussianSigma',
+                      params.FloatParam,
+                      default=3,
+                      condition='denoisingOption==%d' % self.GAUSSIAN_SMOOTHING_FILTERING,
+                      label='Standard deviation',
+                      help='Standard deviation for the gaussian denoising')
 
         # Averaging filtering: bfilter parameters
         form.addParam('average',
@@ -156,10 +168,11 @@ class ProtBsoftDenoising(Protocol):
             # self._insertFunctionStep('convertInputStep')
             self._insertFunctionStep(self.denoisingStep, tomogramId)
 
-        self._insertFunctionStep('createOutputStep')
+        self._insertFunctionStep(self.closeOutputStep)
 
-    # Check the selected command and launch it with the proper parameters
     def denoisingStep(self, tomogramId):
+        '''Check the selected command and launch it with the proper parameters'''
+
         # tomogramId: the ID of the tomogram we are going to denoise
 
         tomogramFileName = self.inputSet.get()[tomogramId].getFileName()
@@ -197,8 +210,8 @@ class ProtBsoftDenoising(Protocol):
                         env=bsoft.Plugin.getEnviron())
 
         if self.denoisingOption == self.GAUSSIAN_SMOOTHING_FILTERING:
-            cmd = ' -verb 7 -dat float -gaussian %f %s %s' % (
-            self.gaussian, tomogramFileName, outputTomogram)
+            cmd = ' -verb 7 -dat float -gaussian %f,%f %s %s' % (
+            self.gaussianMean, self.gaussianSigma, tomogramFileName, outputTomogram)
             print(cmd)
             self.runJob(bsoft.Plugin.getProgram('bfilter'), cmd,
                         env=bsoft.Plugin.getEnviron())
@@ -210,10 +223,39 @@ class ProtBsoftDenoising(Protocol):
             self.runJob(bsoft.Plugin.getProgram('bfilter'), cmd,
                         env=bsoft.Plugin.getEnviron())
 
-    def createOutputStep(self):
-        # register how many times the message has been printed
-        # Now count will be an accumulated value
-        pass
+        outputSetOfTomograms = self.getOutputSetOfTomograms()
+        newTomogram = Tomogram()
+        tomo = self.inputSet.get()[tomogramId]
+        newTomogram.copyInfo(tomo)
+        newTomogram.copyAttributes(tomo, '_origin')
+
+        newTomogram.setLocation(outputTomogram)
+
+        newTomogram.setSamplingRate(self.inputSet.get().getSamplingRate())
+        outputSetOfTomograms.append(newTomogram)
+        outputSetOfTomograms.update(newTomogram)
+        outputSetOfTomograms.write()
+
+    def closeOutputStep(self):
+        self.outputSetOfTomograms.setStreamState(Set.STREAM_CLOSED)
+        self.outputSetOfTomograms.write()
+        self._store()
+
+    def getOutputSetOfTomograms(self):
+        '''
+        This function defines the output of the protocol
+        '''
+        if hasattr(self, "outputSetOfTomograms"):
+            self.outputSetOfTomograms.enableAppend()
+        else:
+            outputSetOfTomograms = self._createSetOfTomograms(suffix='denoised')
+            outputSetOfTomograms.copyInfo(self.inputSet.get())
+            outputSetOfTomograms.setSamplingRate(self.inputSet.get().getSamplingRate())
+            outputSetOfTomograms.setStreamState(Set.STREAM_OPEN)
+            self._defineOutputs(outputSetOfTomograms=outputSetOfTomograms)
+            self._defineSourceRelation(self.inputSet, outputSetOfTomograms)
+        return self.outputSetOfTomograms
+
 
     # --------------------------- INFO functions -----------------------------------
     def _summary(self):
