@@ -1,6 +1,6 @@
 # **************************************************************************
 # *
-# * Authors:     Yunior C. Fonseca Reyna (cfonseca@cnb.csic.es)
+# * Authors:     Juan Martin
 # *
 # * Unidad de  Bioinformatica of Centro Nacional de Biotecnologia , CSIC
 # *
