@@ -23,6 +23,8 @@
 # *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
+import os
+from os.path import exists
 
 from pyworkflow.tests import BaseTest, DataSet, setupTestProject
 from tomo.objects import SetOfTomograms
@@ -36,73 +38,78 @@ class TestBsofttomoBase(BaseTest):
         cls.dataset = DataSet.getDataSet('cryocare')
         cls.sRate = 2.355
 
-    @classmethod
-    def runImportTomograms(cls, tomoFile, mode):
-        """ Run an Import volumes protocol. """
-        protImportTomogram = cls.newProtocol(ProtImportTomograms,
-                                             filesPath=cls.dataset.getFile(tomoFile),
-                                             samplingRate=cls.sRate)
 
-        cls.launchProtocol(protImportTomogram)
+    def runImportTomograms(self, tomoFile, mode):
+        """ Run an Import volumes protocol. """
+        protImportTomogram = self.newProtocol(ProtImportTomograms,
+                                             filesPath=self.dataset.getFile(tomoFile),
+                                             samplingRate=self.sRate)
+
+        self.launchProtocol(protImportTomogram)
         outputTomos = getattr(protImportTomogram, 'outputTomograms', None)
-        cls.assertIsNotNone(outputTomos, 'No tomograms')
+        self.assertIsNotNone(outputTomos, 'No tomograms')
         return protImportTomogram
 
-    def testBSoftBnad(self, tomos):
+    def checkOutputTomoFiles(self, tomos):
+        for tomogram in tomos.outputTomograms:
+            tomogramId = tomogram.getObjId()
+            ts = self.inputSet.get()[tomogramId]
+            tsId = ts.getTsId()
+
+            # Defining the output folder
+            tomoPath = self._getExtraPath(tsId)
+            outputTomogram = os.path.join(tomoPath, ProtBsoftDenoising.OUTPUT_FILE_NAME)
+            self.assertTrue(exists(outputTomogram))
+
+    def BSoftBnad(self, tomos):
         bsoft = self.newProtocol(ProtBsoftDenoising,
-                                   inputSet=tomos,
+                                   inputSet=getattr(tomos, 'outputTomograms', None),
                                    denoisingOption=0,
-                                   numberofIterations=100,
+                                   numberofIterations=1,
                                    slabSize=8,
                                    outputFreq=10)
         self.launchProtocol(bsoft)
-        #self.assertIsNotNone(bsoft.resolution_Volume,
-        #                     "bsoft has failed")
+        self.checkOutputTomoFiles(tomos)
+
+    def BSoftBbif(self, tomos):
+        bsoft = self.newProtocol(ProtBsoftDenoising,
+                                 inputSet=getattr(tomos, 'outputTomograms', None),
+                                 denoisingOption=1,
+                                 space=1.5,
+                                 range=25)
+        self.launchProtocol(bsoft)
+        self.checkOutputTomoFiles(tomos)
+
+    def BSoftBmedian(self, tomos):
+        bsoft = self.newProtocol(ProtBsoftDenoising,
+                                 inputSet=getattr(tomos, 'outputTomograms', None),
+                                 denoisingOption=2,
+                                 kernel=5,
+                                 iter=3)
+        self.launchProtocol(bsoft)
+        self.checkOutputTomoFiles(tomos)
+
+    def BSoftBfilter(self, tomos):
+        bsoft = self.newProtocol(ProtBsoftDenoising,
+                                 inputSet=getattr(tomos, 'outputTomograms', None),
+                                 denoisingOption=3,
+                                 gaussianMean=19,
+                                 gaussianSigma=3, )
+        self.launchProtocol(bsoft)
+        self.checkOutputTomoFiles(tomos)
+
+    def BSoftBfilterAveraging(self, tomos):
+        bsoft = self.newProtocol(ProtBsoftDenoising,
+                                 inputSet=getattr(tomos, 'outputTomograms', None),
+                                 denoisingOption=4,
+                                 average=7)
+        self.launchProtocol(bsoft)
+        self.checkOutputTomoFiles(tomos)
 
     def testWorkflow(self):
         importTomograms = self.runImportTomograms('tomo_even', 'even')
-        self.testBSoftBnad(importTomograms)
-        # protTraining = self._runTrainingData(prepTrainingDataProt)
-        # Prediction from training
-        # self._runPredict(importTomoProtEven, importTomoProtOdd, protTraining=protTraining)
-        # Load a pre-trained model and predict
-    '''
-    def testBSoftBbif(self):
-        bsoft = self.newProtocol(ProtBsoftDenoising,
-                                   inputSet='tomo - import tomograms.outputTomograms',
-                                   denoisingOption=0,
-                                   space=1.5,
-                                   range=25)
-        self.launchProtocol(bsoft)
-        #self.assertIsNotNone(bsoft.resolution_Volume,
-        #                     "bsoft has failed")
-
-    def testBSoftBmedian(self):
-        bsoft = self.newProtocol(ProtBsoftDenoising,
-                                   inputSet='tomo - import tomograms.outputTomograms',
-                                   denoisingOption=0,
-                                   kernel=5,
-                                   iter=3)
-        self.launchProtocol(bsoft)
-        #self.assertIsNotNone(bsoft.resolution_Volume,
-        #                     "bsoft has failed")
-
-    def testBSoftBfilter(self):
-        bsoft = self.newProtocol(ProtBsoftDenoising,
-                                   inputSet='tomo - import tomograms.outputTomograms',
-                                   denoisingOption=0,
-                                   gaussianMean=19,
-                                   gaussianSigma=3,)
-        self.launchProtocol(bsoft)
-        #self.assertIsNotNone(bsoft.resolution_Volume,
-        #                     "bsoft has failed")
-
-    def testBSoftBfilterAveraging(self):
-        bsoft = self.newProtocol(ProtBsoftDenoising,
-                                   inputSet='tomo - import tomograms.outputTomograms',
-                                   denoisingOption=0,
-                                   average=7)
-        self.launchProtocol(bsoft)
-        #self.assertIsNotNone(bsoft.resolution_Volume,
-        #                     "bsoft has failed")
-    '''
+        self.BSoftBnad(importTomograms)
+        self.BSoftBbif(importTomograms)
+        self.BSoftBmedian(importTomograms)
+        self.BSoftBfilter(importTomograms)
+        self.BSoftBfilterAveraging(importTomograms)
