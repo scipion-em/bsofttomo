@@ -26,50 +26,31 @@
 
 from pyworkflow.tests import BaseTest, DataSet, setupTestProject
 from tomo.objects import SetOfTomograms
-
+from tomo.protocols import ProtImportTomograms
 from bsofttomo.protocols import ProtBsoftDenoising
 
 class TestBsofttomoBase(BaseTest):
     @classmethod
-    def setData(cls, dataProject='resmap'):
-        cls.dataset = DataSet.getDataSet(dataProject)
-        cls.half1 = cls.dataset.getFile('betagal_half1')
-        cls.half2 = cls.dataset.getFile('betagal_half2')
-        cls.mask = cls.dataset.getFile('betagal_mask')
-
-    @classmethod
-    def runImportVolumes(cls, pattern, samplingRate):
-        """ Run an Import volumes protocol. """
-        cls.protImport = cls.newProtocol(SetOfTomograms,
-                                         filesPath=pattern,
-                                         samplingRate=samplingRate
-                                         )
-        cls.launchProtocol(cls.protImport)
-        return cls.protImport
-
-    @classmethod
-    def runImportMask(cls, pattern, samplingRate):
-        """ Run an Import volumes protocol. """
-        cls.protImport = cls.newProtocol(SetOfTomograms,
-                                         maskPath=pattern,
-                                         samplingRate=samplingRate
-                                         )
-        cls.launchProtocol(cls.protImport)
-        return cls.protImport
-
-
-class TestBsoftTomo(TestBsofttomoBase):
-    @classmethod
     def setUpClass(cls):
         setupTestProject(cls)
-        TestBsofttomoBase.setData()
-        cls.protImportHalf1 = cls.runImportVolumes(cls.half1, 3.54)
-        cls.protImportHalf2 = cls.runImportVolumes(cls.half2, 3.54)
-        cls.protCreateMask = cls.runImportMask(cls.mask, 3.54)
+        cls.dataset = DataSet.getDataSet('cryocare')
+        cls.sRate = 2.355
 
-    def testBSoftBnad(self):
+    @classmethod
+    def runImportTomograms(cls, tomoFile, mode):
+        """ Run an Import volumes protocol. """
+        protImportTomogram = cls.newProtocol(ProtImportTomograms,
+                                             filesPath=cls.dataset.getFile(tomoFile),
+                                             samplingRate=cls.sRate)
+
+        cls.launchProtocol(protImportTomogram)
+        outputTomos = getattr(protImportTomogram, 'outputTomograms', None)
+        cls.assertIsNotNone(outputTomos, 'No tomograms')
+        return protImportTomogram
+
+    def testBSoftBnad(self, tomos):
         bsoft = self.newProtocol(ProtBsoftDenoising,
-                                   inputSet='tomo - import tomograms.outputTomograms',
+                                   inputSet=tomos,
                                    denoisingOption=0,
                                    numberofIterations=100,
                                    slabSize=8,
@@ -78,6 +59,14 @@ class TestBsoftTomo(TestBsofttomoBase):
         #self.assertIsNotNone(bsoft.resolution_Volume,
         #                     "bsoft has failed")
 
+    def testWorkflow(self):
+        importTomograms = self.runImportTomograms('tomo_even', 'even')
+        self.testBSoftBnad(importTomograms)
+        # protTraining = self._runTrainingData(prepTrainingDataProt)
+        # Prediction from training
+        # self._runPredict(importTomoProtEven, importTomoProtOdd, protTraining=protTraining)
+        # Load a pre-trained model and predict
+    '''
     def testBSoftBbif(self):
         bsoft = self.newProtocol(ProtBsoftDenoising,
                                    inputSet='tomo - import tomograms.outputTomograms',
@@ -116,3 +105,4 @@ class TestBsoftTomo(TestBsofttomoBase):
         self.launchProtocol(bsoft)
         #self.assertIsNotNone(bsoft.resolution_Volume,
         #                     "bsoft has failed")
+    '''

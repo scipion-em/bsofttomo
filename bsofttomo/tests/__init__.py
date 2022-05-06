@@ -23,6 +23,10 @@
 # *  e-mail address 'scipion@cnb.csic.es'
 # *
 # **************************************************************************
-
-from .test_protocols_bsofttomo import (TestBsoftTomo,
-                                           TestBsofttomoBase)
+from pyworkflow.tests import DataSet
+DataSet(name='cryocare', folder='cryocare',
+        files={
+            'rec_even_odd_tomos_dir': 'Tomos_EvenOdd_Reconstructed',
+            'tomo_even': 'Tomos_EvenOdd_Reconstructed/Tomo110_Even_bin6.mrc'
+        })
+from .test_protocols_bsofttomo import (TestBsofttomoBase)
