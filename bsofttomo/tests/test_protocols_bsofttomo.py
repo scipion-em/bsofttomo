@@ -50,16 +50,6 @@ class TestBsofttomoBase(BaseTest):
         self.assertIsNotNone(outputTomos, 'No tomograms')
         return protImportTomogram
 
-    def BSoftBnad(self, tomos):
-        bsoft = self.newProtocol(ProtBsoftDenoising,
-                                   inputSet=getattr(tomos, 'outputTomograms', None),
-                                   denoisingOption=0,
-                                   numberofIterations=1,
-                                   slabSize=8,
-                                   outputFreq=10)
-        self.launchProtocol(bsoft)
-        self.checkOutputTomoFiles(tomos, bsoft)
-
     def checkOutputTomoFiles(self, tomos, bsoft):
         for tomogram in tomos.outputTomograms:
             tomogramId = tomogram.getObjId()
@@ -71,7 +61,17 @@ class TestBsofttomoBase(BaseTest):
             tomoPath = bsoft._getExtraPath(tsId)
             outputTomogram = os.path.join(tomoPath, ProtBsoftDenoising.OUTPUT_FILE_NAME)
             self.assertTrue(exists(outputTomogram))
-    '''
+
+    def BSoftBnad(self, tomos):
+        bsoft = self.newProtocol(ProtBsoftDenoising,
+                                   inputSet=getattr(tomos, 'outputTomograms', None),
+                                   denoisingOption=0,
+                                   numberofIterations=1,
+                                   slabSize=8,
+                                   outputFreq=10)
+        self.launchProtocol(bsoft)
+        self.checkOutputTomoFiles(tomos, bsoft)
+
     def BSoftBbif(self, tomos):
         bsoft = self.newProtocol(ProtBsoftDenoising,
                                  inputSet=getattr(tomos, 'outputTomograms', None),
@@ -79,7 +79,7 @@ class TestBsofttomoBase(BaseTest):
                                  space=1.5,
                                  range=25)
         self.launchProtocol(bsoft)
-        self.checkOutputTomoFiles(tomos)
+        self.checkOutputTomoFiles(tomos, bsoft)
 
     def BSoftBmedian(self, tomos):
         bsoft = self.newProtocol(ProtBsoftDenoising,
@@ -88,7 +88,7 @@ class TestBsofttomoBase(BaseTest):
                                  kernel=5,
                                  iter=3)
         self.launchProtocol(bsoft)
-        self.checkOutputTomoFiles(tomos)
+        self.checkOutputTomoFiles(tomos, bsoft)
 
     def BSoftBfilter(self, tomos):
         bsoft = self.newProtocol(ProtBsoftDenoising,
@@ -97,7 +97,7 @@ class TestBsofttomoBase(BaseTest):
                                  gaussianMean=19,
                                  gaussianSigma=3, )
         self.launchProtocol(bsoft)
-        self.checkOutputTomoFiles(tomos)
+        self.checkOutputTomoFiles(tomos, bsoft)
 
     def BSoftBfilterAveraging(self, tomos):
         bsoft = self.newProtocol(ProtBsoftDenoising,
@@ -105,12 +105,12 @@ class TestBsofttomoBase(BaseTest):
                                  denoisingOption=4,
                                  average=7)
         self.launchProtocol(bsoft)
-        self.checkOutputTomoFiles(tomos)
-    '''
+        self.checkOutputTomoFiles(tomos, bsoft)
+
     def testWorkflow(self):
         importTomograms = self.runImportTomograms('tomo_even', 'even')
         self.BSoftBnad(importTomograms)
-        #self.BSoftBbif(importTomograms)
-        #self.BSoftBmedian(importTomograms)
-        #self.BSoftBfilter(importTomograms)
-        #self.BSoftBfilterAveraging(importTomograms)
+        self.BSoftBbif(importTomograms)
+        self.BSoftBmedian(importTomograms)
+        self.BSoftBfilter(importTomograms)
+        self.BSoftBfilterAveraging(importTomograms)
