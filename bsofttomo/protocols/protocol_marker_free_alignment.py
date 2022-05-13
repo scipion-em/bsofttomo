@@ -48,9 +48,9 @@ class ProtBsoftMarkerFreeAlignment(EMProtocol, ProtTomoBase):
     """
     _label = 'Marker Free Alignment'
 
-    OUTPUT_FILE_NAME_THON = 'ctf.mrc'
-    OUTPUT_FILE_NAME_JSON_PARAMETERS = 'ctf.json'
+    ALIGNMENT_FILE_NAME = 'alignmentParameters.star'
     PREPARE_FILE_NAME = 'tomo_prepare.star'
+
 
     # -------------------------- DEFINE param functions ----------------------
     def _defineParams(self, form):
@@ -96,13 +96,6 @@ class ProtBsoftMarkerFreeAlignment(EMProtocol, ProtTomoBase):
         line.addParam('edgeX', params.IntParam, default=20, label='edgeX', important=True)
         line.addParam('edgeY', params.IntParam, default=3, label='edgeY', important=True)
 
-        form.addParam('lambdaArg',
-                      params.IntParam,
-                      default=2165,
-                      important=True,
-                      label='lambda',
-                      help='The -lambda option specifies the proportionality parameter for estimating the thickness.')
-
         form.addParam('axisArg',
                       params.FloatParam,
                       default=90,
@@ -114,24 +107,23 @@ class ProtBsoftMarkerFreeAlignment(EMProtocol, ProtTomoBase):
     def _insertAllSteps(self):
         # Insert processing steps
         for ts in self.inputSetofTiltSeries.get():
-            id = ts.getObjId()
-            # self._insertFunctionStep('convertInputStep')
-            self._insertFunctionStep(self.preparingDataStep(id))
-            self._insertFunctionStep(self.markerFreeAlignemetStep(), id)
+            self._insertFunctionStep(self.preparingDataStep, ts.getObjId())
+            self._insertFunctionStep(self.markerFreeAlignemetStep, ts.getObjId())
 
     def preparingDataStep(self, id):
         filename, tomoPath = self.getTSName(id)
         os.mkdir(tomoPath)
-        cmd = ' -v 7 -sampling 1.75 -axis %f -tilt -60,3 -out %s %s' % (
+        cmd = ' -v 7 -sampling %f -axis %f -tilt -60,3 -out %s %s' % (
+            self.inputSetofTiltSeries.get().getSamplingRate(),
             self.axisArg, os.path.join(tomoPath, self.PREPARE_FILE_NAME), filename)
-        print(cmd)
+
         self.runJob(bsoft.Plugin.getProgram('btomo'), cmd,
                     env=bsoft.Plugin.getEnviron())
 
     # Get the name of the file with the position of the item
     def getTSName(self, id):
-        tsFileName = self.inputSetofTiltSeries.get()[id].getFileName()
         ts = self.inputSetofTiltSeries.get()[id]
+        tsFileName = ts.getFirstItem().getFileName()
         tsId = ts.getTsId()
 
         # Defining the output folder
@@ -147,11 +139,11 @@ class ProtBsoftMarkerFreeAlignment(EMProtocol, ProtTomoBase):
         tomogramFileName, tomoPath = self.getTSName(id)
 
         # Defining outfiles
-        outputTiltSeries = os.path.join(tomoPath, self.OUTPUT_FILE_NAME)
+        outputTiltSeries = os.path.join(tomoPath, self.ALIGNMENT_FILE_NAME)
 
-        cmd = ' -verb 1 -align %d,%d,%d -resol %d -edge %d,%d -lambda %d -out % %s' % (
+        cmd = ' -verb 1 -align %d,%d,%d -resol %d -edge %d,%d -out %s %s' % (
             self.nIterations, self.stopCondition, self.nAdjacent, self.resol, self.edgeX, self.edgeY,
-            self.lambdaArg, outputTiltSeries, os.path.join(tomoPath, self.PREPARE_FILE_NAME))
+            outputTiltSeries, os.path.join(tomoPath, self.PREPARE_FILE_NAME))
         print(cmd)
         self.runJob(bsoft.Plugin.getProgram('btomaln'), cmd,
                     env=bsoft.Plugin.getEnviron())

@@ -49,6 +49,7 @@ class ProtBsoftCTFTiltSeries(EMProtocol, ProtTomoBase):
     _label = 'CTF Tilt series'
 
     OUTPUT_FILE_NAME_THON = 'ctf.mrc'
+    CTF_STAR_FILE = 'ctf.star'
     OUTPUT_FILE_NAME_JSON_PARAMETERS = 'ctf.json'
     PREPARE_FILE_NAME = 'tomo_prepare.star'
 
@@ -104,8 +105,8 @@ class ProtBsoftCTFTiltSeries(EMProtocol, ProtTomoBase):
                                  "If Low is empty MonoRes will try to estimate the range. "
                                  "it should be better if a range is provided")
 
-        line.addParam('ResolX', params.IntParam, default=10, label='ResolX', important=True)
-        line.addParam('ResolY', params.IntParam,  default=50, label='ResolY', important=True)
+        line.addParam('resolX', params.IntParam, default=10, label='ResolX', important=True)
+        line.addParam('resolY', params.IntParam,  default=50, label='ResolY', important=True)
 
         form.addParam('axisArg',
                       params.FloatParam,
@@ -119,28 +120,21 @@ class ProtBsoftCTFTiltSeries(EMProtocol, ProtTomoBase):
     def _insertAllSteps(self):
         # Insert processing steps
         for ts in self.inputSetofTiltSeries.get():
-            id = ts.getObjId()
-            # self._insertFunctionStep('convertInputStep')
-            ts = self.inputSetofTiltSeries.get()[id]
-            tsId = ts.getTsId()
-            print("##########" + ts.getLocation())
-            self._insertFunctionStep(self.preparingDataStep(id))
-            self._insertFunctionStep(self.ctfStep, id)
+            self._insertFunctionStep(self.preparingDataStep, ts.getObjId())
+            self._insertFunctionStep(self.ctfStep, ts.getObjId())
 
     def preparingDataStep(self, id):
         filename, tomoPath = self.getTSName(id)
         os.mkdir(tomoPath)
-        cmd = ' -v 7 -sampling 1.75 -axis %f -tilt -60,3 -out %s %s' % (
+        cmd = ' -v 7 -sampling %f -axis %f -tilt -60,3 -out %s %s' % (
+            self.inputSetofTiltSeries.get().getSamplingRate(),
             self.axisArg, os.path.join(tomoPath, self.PREPARE_FILE_NAME), filename)
-        print(cmd)
-        self.runJob(bsoft.Plugin.getProgram('btomo'), cmd,
-                    env=bsoft.Plugin.getEnviron())
+        self.runJob(bsoft.Plugin.getProgram('btomo'), cmd, env=bsoft.Plugin.getEnviron())
 
     # Get the name of the file with the position of the item
     def getTSName(self, id):
-        #tsFileName = self.inputSetofTiltSeries.get()[id].getFileName()
         ts = self.inputSetofTiltSeries.get()[id]
-        tsFileName = os.path.dirname(self.inputSetofTiltSeries.get()[id].getFileName())
+        tsFileName = ts.getFirstItem().getFileName()
         tsId = ts.getTsId()
         # Defining the output folder
         tomoPath = self._getExtraPath(tsId)
@@ -155,14 +149,17 @@ class ProtBsoftCTFTiltSeries(EMProtocol, ProtTomoBase):
         tomogramFileName, tomoPath = self.getTSName(id)
 
         # Defining outfiles
-        outputTomogram = os.path.join(tomoPath, self.OUTPUT_FILE_NAME)
+        outputctf = os.path.join(tomoPath, self.CTF_STAR_FILE)
 
-        cmd = ' -verb 1 -act prepfit -tile %d,%d,1 -Volt %d -Defocus %f -Amp %f -resol %d,%d -out tomo_ctfit.star %s' % (
+        cmd = ' -verb 1 -act prepfit -tile %d,%d,1 -Volt %d -Defocus %f -Amp %f -resol %d,%d -out %s %s' % (
             self.tileX, self.tileY, self.volt, self.defocus, self.amp, self.resolX, self.resolY,
-            os.path.join(tomoPath, self.PREPARE_FILE_NAME))
-        print(cmd)
+            outputctf, os.path.join(tomoPath, self.PREPARE_FILE_NAME))
+
         self.runJob(bsoft.Plugin.getProgram('bctf'), cmd,
                     env=bsoft.Plugin.getEnviron())
+
+    def createOutputStep(self):
+        pass
 
     # --------------------------- INFO functions -----------------------------------
     def _summary(self):
