@@ -41,12 +41,12 @@ from pyworkflow.object import Set
 from tomo.objects import SetOfTiltSeries, SetOfTomograms, SetOfCTFTomoSeries, CTFTomoSeries, CTFTomo
 from tomo.protocols import ProtTomoBase
 
-class ProtBsoftTiltSeriesAlignment(EMProtocol, ProtTomoBase):
+class ProtBsoftMarkerFreeAlignment(EMProtocol, ProtTomoBase):
     """
     This protocol will print hello world in the console
     IMPORTANT: Classes names should be unique, better prefix them
     """
-    _label = 'CTF Tilt series'
+    _label = 'Marker Free Alignment'
 
     OUTPUT_FILE_NAME_THON = 'ctf.mrc'
     OUTPUT_FILE_NAME_JSON_PARAMETERS = 'ctf.json'
@@ -69,52 +69,46 @@ class ProtBsoftTiltSeriesAlignment(EMProtocol, ProtTomoBase):
                       help='Select a set of tilt series.')
 
         line = form.addLine('align',
-                             help="If the user knows the range of resolutions or"
-                                  " only a range of frequencies needs to be analysed."
-                                  "If Low is empty MonoRes will try to estimate the range. "
-                                  "it should be better if a range is provided")
+                             help="The -align option takes three parameters: "
+                                  "-Number of iterations: These are iterations over the full "
+                                  " tilt series attempting to refine the micrograph orientations"
+                                  "-Stopping condition: Sets the threshold to stop when the average "
+                                  " micrograph shift difference compared to the pervious iteration drops below it."
+                                  "-Number of adjacent micrographs to include in each subset reconstruction.")
 
-        line.addParam('alignX', params.IntParam, default=256, label='tileX', important=True)
-        line.addParam('alignY', params.IntParam, default=256, label='tileY', important=True)
-        line.addParam('alignZ', params.IntParam, default=256, label='tileY', important=True)
+        line.addParam('nIterations', params.IntParam, default=3, label='Iterations', important=True)
+        line.addParam('stopCondition', params.IntParam, default=1, label='stopCondition', important=True)
+        line.addParam('nAdjacent', params.IntParam, default=3, label='nAdjacentMicrographs', important=True)
 
-        form.addParam('volt',
+        form.addParam('resol',
                       params.IntParam,
-                      default=300,
+                      default=20,
                       important=True,
-                      label='Voltage',
-                      help='Voltage (keV)')
+                      label='Resolution',
+                      help='The -resolution option sets the high resolution limit for cross correlations.')
 
-        form.addParam('defocus',
-                      params.FloatParam,
-                      default=2.6,
+        line = form.addLine('edge',
+                            help="The edge option smooths the edges of the micrographs "
+                                 "which includes erasing extraneous areas at high tilts." 
+                                 "The parameters are the width of the edge and the standard "
+                                 "deviation of the transition, both in pixels")
+
+        line.addParam('edgeX', params.IntParam, default=20, label='edgeX', important=True)
+        line.addParam('edgeY', params.IntParam, default=3, label='edgeY', important=True)
+
+        form.addParam('lambdaArg',
+                      params.IntParam,
+                      default=2165,
                       important=True,
-                      label='Defocus',
-                      help='Defocus.')
+                      label='lambda',
+                      help='The -lambda option specifies the proportionality parameter for estimating the thickness.')
 
-        form.addParam('amp',
-                      params.FloatParam,
-                      default=0.07,
-                      important=True,
-                      label='Amplitude',
-                      help='Amplitude contrast.')
-
-        line = form.addLine('Resolution Range (Å)',
-                            help="If the user knows the range of resolutions or"
-                                 " only a range of frequencies needs to be analysed."
-                                 "If Low is empty MonoRes will try to estimate the range. "
-                                 "it should be better if a range is provided")
-
-        line.addParam('ResolX', params.IntParam, default=10, label='ResolX', important=True, )
-        line.addParam('ResolY', params.IntParam,  default=50, label='ResolY', important=True, )
-
-        form.addParam('axis',
+        form.addParam('axisArg',
                       params.FloatParam,
                       default=90,
                       important=True,
                       label='axis',
                       help='Axis')
-
 
     # --------------------------- STEPS functions ------------------------------
     def _insertAllSteps(self):
@@ -123,24 +117,21 @@ class ProtBsoftTiltSeriesAlignment(EMProtocol, ProtTomoBase):
             id = ts.getObjId()
             # self._insertFunctionStep('convertInputStep')
             self._insertFunctionStep(self.preparingDataStep(id))
-            self._insertFunctionStep(self.ctfStep, id)
-
-
-
+            self._insertFunctionStep(self.markerFreeAlignemetStep(), id)
 
     def preparingDataStep(self, id):
         filename, tomoPath = self.getTSName(id)
         os.mkdir(tomoPath)
         cmd = ' -v 7 -sampling 1.75 -axis %f -tilt -60,3 -out %s %s' % (
-            self.axis, os.path.join(tomoPath, self.PREPARE_FILE_NAME), filename)
+            self.axisArg, os.path.join(tomoPath, self.PREPARE_FILE_NAME), filename)
         print(cmd)
         self.runJob(bsoft.Plugin.getProgram('btomo'), cmd,
                     env=bsoft.Plugin.getEnviron())
 
     # Get the name of the file with the position of the item
-    def getTSName(self, idd):
-        tsFileName = self.inputSetOfTiltSeries.get()[id].getFileName()
-        ts = self.inputSet.get()[id]
+    def getTSName(self, id):
+        tsFileName = self.inputSetofTiltSeries.get()[id].getFileName()
+        ts = self.inputSetofTiltSeries.get()[id]
         tsId = ts.getTsId()
 
         # Defining the output folder
@@ -148,7 +139,7 @@ class ProtBsoftTiltSeriesAlignment(EMProtocol, ProtTomoBase):
 
         return tsFileName, tomoPath
 
-    def ctfStep(self, id):
+    def markerFreeAlignemetStep(self, id):
         '''Check the selected command and launch it with the proper parameters'''
 
         # tomogramId: the ID of the tomogram we are going to denoise
@@ -156,13 +147,13 @@ class ProtBsoftTiltSeriesAlignment(EMProtocol, ProtTomoBase):
         tomogramFileName, tomoPath = self.getTSName(id)
 
         # Defining outfiles
-        outputTomogram = os.path.join(tomoPath, self.OUTPUT_FILE_NAME)
+        outputTiltSeries = os.path.join(tomoPath, self.OUTPUT_FILE_NAME)
 
-        cmd = ' -verb 1 -act prepfit -tile %d,%d,1 -Volt %d -Defocus %f -Amp %f -resol %d,%d -out tomo_ctfit.star %s' % (
-            self.tileX, self.tileY, self.volt, self.defocus, self.amp, self.resolX, self.resolY,
-            os.path.join(tomoPath, self.PREPARE_FILE_NAME))
+        cmd = ' -verb 1 -align %d,%d,%d -resol %d -edge %d,%d -lambda %d -out % %s' % (
+            self.nIterations, self.stopCondition, self.nAdjacent, self.resol, self.edgeX, self.edgeY,
+            self.lambdaArg, outputTiltSeries, os.path.join(tomoPath, self.PREPARE_FILE_NAME))
         print(cmd)
-        self.runJob(bsoft.Plugin.getProgram('bctf'), cmd,
+        self.runJob(bsoft.Plugin.getProgram('btomaln'), cmd,
                     env=bsoft.Plugin.getEnviron())
 
     # --------------------------- INFO functions -----------------------------------

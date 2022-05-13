@@ -107,7 +107,7 @@ class ProtBsoftCTFTiltSeries(EMProtocol, ProtTomoBase):
         line.addParam('ResolX', params.IntParam, default=10, label='ResolX', important=True)
         line.addParam('ResolY', params.IntParam,  default=50, label='ResolY', important=True)
 
-        form.addParam('axis',
+        form.addParam('axisArg',
                       params.FloatParam,
                       default=90,
                       important=True,
@@ -121,27 +121,27 @@ class ProtBsoftCTFTiltSeries(EMProtocol, ProtTomoBase):
         for ts in self.inputSetofTiltSeries.get():
             id = ts.getObjId()
             # self._insertFunctionStep('convertInputStep')
+            ts = self.inputSetofTiltSeries.get()[id]
+            tsId = ts.getTsId()
+            print("##########" + ts.getLocation())
             self._insertFunctionStep(self.preparingDataStep(id))
             self._insertFunctionStep(self.ctfStep, id)
-
-
-
 
     def preparingDataStep(self, id):
         filename, tomoPath = self.getTSName(id)
         os.mkdir(tomoPath)
         cmd = ' -v 7 -sampling 1.75 -axis %f -tilt -60,3 -out %s %s' % (
-            self.axis, os.path.join(tomoPath, self.PREPARE_FILE_NAME), filename)
+            self.axisArg, os.path.join(tomoPath, self.PREPARE_FILE_NAME), filename)
         print(cmd)
         self.runJob(bsoft.Plugin.getProgram('btomo'), cmd,
                     env=bsoft.Plugin.getEnviron())
 
     # Get the name of the file with the position of the item
-    def getTSName(self, idd):
-        tsFileName = self.inputSetOfTiltSeries.get()[id].getFileName()
-        ts = self.inputSet.get()[id]
+    def getTSName(self, id):
+        #tsFileName = self.inputSetofTiltSeries.get()[id].getFileName()
+        ts = self.inputSetofTiltSeries.get()[id]
+        tsFileName = os.path.dirname(self.inputSetofTiltSeries.get()[id].getFileName())
         tsId = ts.getTsId()
-
         # Defining the output folder
         tomoPath = self._getExtraPath(tsId)
 

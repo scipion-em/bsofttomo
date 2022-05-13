@@ -5,4 +5,4 @@
 # **************************************************************************
 from .protocol_denosing import ProtBsoftDenoising
 from .protocol_ctf_tiltseries import ProtBsoftCTFTiltSeries
-from .protocol_tilt_series_alignment import ProtBsoftTiltSeriesAlignment
+from .protocol_marker_free_alignment import ProtBsoftMarkerFreeAlignment
